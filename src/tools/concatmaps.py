@@ -25,7 +25,7 @@ import sys
 from bs4 import BeautifulSoup
 
 
-def checkArguments(args):
+def check_arguments(args):
     error = False
     for path in args[1:3]:
         if not os.path.exists(path):
@@ -35,44 +35,44 @@ def checkArguments(args):
         sys.exit(2)
 
 
-def concat(firstFile, secondFile):
-    firstSvg = loadSvg(firstFile)
-    secondSvg = loadSvg(secondFile)
+def concat(first_file, second_file):
+    first_svg = load_svg(first_file)
+    second_svg = load_svg(second_file)
     symbols = []
     jumps = []
-    systemUses = []
+    system_uses = []
 
-    for defElement in secondSvg.select("defs"):
-        for symbol in defElement.select("symbol"):
+    for def_element in second_svg.select("defs"):
+        for symbol in def_element.select("symbol"):
             symbols.append(symbol)
 
-    for jumpgroup in secondSvg.select("#jumps"):
+    for jumpgroup in second_svg.select("#jumps"):
         for jump in jumpgroup.select("line"):
             jump["x1"] = float(jump["x1"]) + 3000
             jump["x2"] = float(jump["x2"]) + 3000
             jumps.append(jump)
 
-    for sysgroup in secondSvg.select("#sysuse"):
+    for sysgroup in second_svg.select("#sysuse"):
         for sysuse in sysgroup.select("use"):
             sysuse["x"] = float(sysuse["x"]) + 3000
-            systemUses.append(sysuse)
+            system_uses.append(sysuse)
 
-    defElement = firstSvg.select("defs")[0]
+    def_element = first_svg.select("defs")[0]
     for symbol in symbols:
-        defElement.append(symbol)
+        def_element.append(symbol)
 
-    jumpsElement = firstSvg.select("#jumps")[0]
+    jumps_element = first_svg.select("#jumps")[0]
     for jump in jumps:
-        jumpsElement.append(jump)
+        jumps_element.append(jump)
 
-    systemUseElement = firstSvg.select("#sysuse")[0]
-    for systemUse in systemUses:
-        systemUseElement.append(systemUse)
+    system_use_element = first_svg.select("#sysuse")[0]
+    for systemUse in system_uses:
+        system_use_element.append(systemUse)
 
-    return firstSvg
+    return first_svg
 
 
-def loadSvg(path):
+def load_svg(path):
     content = None
     with open(path) as f:
         content = f.read()
@@ -86,9 +86,9 @@ def main():
         errout("All argumens are pathes to files")
         errout("The new map is written to stdout")
         sys.exit(1)
-    checkArguments(sys.argv)
-    newSvg = concat(sys.argv[1], sys.argv[2])
-    result = newSvg.body.next.prettify().encode("utf-8")
+    check_arguments(sys.argv)
+    new_svg = concat(sys.argv[1], sys.argv[2])
+    result = new_svg.body.next.prettify().encode("utf-8")
     print(result)
 
 

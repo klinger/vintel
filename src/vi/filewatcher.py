@@ -20,7 +20,6 @@
 import os
 import stat
 import time
-import logging
 
 from PyQt4 import QtCore
 from PyQt4.QtCore import SIGNAL
@@ -39,23 +38,22 @@ if a new file was created. We watch only the newest (last 24h), not all!
 
 DEFAULT_MAX_AGE = 60 * 60 * 24
 
+
 class FileWatcher(QtCore.QThread):
-    def __init__(self, path, maxAge=DEFAULT_MAX_AGE):
+    def __init__(self, path, max_age=DEFAULT_MAX_AGE):
         QtCore.QThread.__init__(self)
         self.path = path
-        self.maxAge = maxAge
+        self.maxAge = max_age
         self.files = {}
-        self.updateWatchedFiles()
+        self.updatewatchedfiles()
         self.qtfw = QtCore.QFileSystemWatcher()
-        self.qtfw.directoryChanged.connect(self.directoryChanged)
+        self.qtfw.directoryChanged.connect(self.directory_changed)
         self.qtfw.addPath(path)
         self.paused = True
         self.active = True
 
-
-    def directoryChanged(self):
-        self.updateWatchedFiles()
-
+    def directory_changed(self):
+        self.updatewatchedfiles()
 
     def run(self):
         while True:
@@ -65,31 +63,28 @@ class FileWatcher(QtCore.QThread):
             if self.paused:
                 continue
             for path, modified in self.files.items():
-                pathStat = os.stat(path)
-                if not stat.S_ISREG(pathStat.st_mode):
+                pathstat = os.stat(path)
+                if not stat.S_ISREG(pathstat.st_mode):
                     continue
-                if modified < pathStat.st_size:
+                if modified < pathstat.st_size:
                     self.emit(SIGNAL("file_change"), path)
-                self.files[path] = pathStat.st_size
-
+                self.files[path] = pathstat.st_size
 
     def quit(self):
         self.active = False
         QtCore.QThread.quit(self)
 
-
-    def updateWatchedFiles(self):
+    def updatewatchedfiles(self):
         # Reading all files from the directory
-        fullPath = None
         now = time.time()
         path = self.path
-        filesInDir = {}
+        files_in_dir = {}
         for f in os.listdir(path):
-            fullPath = os.path.join(path, f)
-            pathStat = os.stat(fullPath)
-            if not stat.S_ISREG(pathStat.st_mode):
+            fullpath = os.path.join(path, f)
+            pathstat = os.stat(fullpath)
+            if not stat.S_ISREG(pathstat.st_mode):
                 continue
-            if self.maxAge and ((now - pathStat.st_mtime) > self.maxAge):
+            if self.maxAge and ((now - pathstat.st_mtime) > self.maxAge):
                 continue
-            filesInDir[fullPath] = self.files.get(fullPath, 0)
-        self.files = filesInDir
+            files_in_dir[fullpath] = self.files.get(fullpath, 0)
+        self.files = files_in_dir

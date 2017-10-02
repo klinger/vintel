@@ -20,17 +20,17 @@
 import datetime
 import os
 import time
-import six
-if six.PY2:
-    from io import open
 
+import six
+from PyQt4.QtGui import QMessageBox
 from bs4 import BeautifulSoup
 from vi import states
-from PyQt4.QtGui import QMessageBox
 
+from .parser_functions import parse_status
+from .parser_functions import parse_urls, parse_ships, parse_systems
 
-from .parser_functions import parseStatus
-from .parser_functions import parseUrls, parseShips, parseSystems
+if six.PY2:
+    from io import open
 
 # Names the local chatlogs could start with (depends on l10n of the client)
 LOCAL_NAMES = ("Local", "Lokal", six.text_type("\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439"))
@@ -50,18 +50,18 @@ class ChatParser(object):
         self.knownMessages = []  # message we allready analyzed
         self.locations = {}  # informations about the location of a char
         self.ignoredPaths = []
-        self._collectInitFileData(path)
+        self._collect_init_file_data(path)
 
-    def _collectInitFileData(self, path):
-        currentTime = time.time()
-        maxDiff = 60 * 60 * 24  # what is 1 day in seconds
+    def _collect_init_file_data(self, path):
+        current_time = time.time()
+        max_diff = 60 * 60 * 24  # what is 1 day in seconds
         for filename in os.listdir(path):
-            fullPath = os.path.join(path, filename)
-            fileTime = os.path.getmtime(fullPath)
-            if currentTime - fileTime < maxDiff:
-                self.addFile(fullPath)
+            full_path = os.path.join(path, filename)
+            file_time = os.path.getmtime(full_path)
+            if current_time - file_time < max_diff:
+                self.add_file(full_path)
 
-    def addFile(self, path):
+    def add_file(self, path):
         lines = None
         content = ""
         filename = os.path.basename(path)
@@ -79,77 +79,74 @@ class ChatParser(object):
             self.fileData[path] = {}
             if roomname in LOCAL_NAMES:
                 charname = None
-                sessionStart = None
+                session_start = None
                 # for local-chats we need more infos
                 for line in lines:
                     if "Listener:" in line:
                         charname = line[line.find(":") + 1:].strip()
                     elif "Session started:" in line:
-                        sessionStr = line[line.find(":") + 1:].strip()
-                        sessionStart = datetime.datetime.strptime(sessionStr, "%Y.%m.%d %H:%M:%S")
-                    if charname and sessionStart:
+                        session_str = line[line.find(":") + 1:].strip()
+                        session_start = datetime.datetime.strptime(session_str, "%Y.%m.%d %H:%M:%S")
+                    if charname and session_start:
                         self.fileData[path]["charname"] = charname
-                        self.fileData[path]["sessionstart"] = sessionStart
+                        self.fileData[path]["sessionstart"] = session_start
                         break
         self.fileData[path]["lines"] = len(lines)
         return lines
 
-    def _lineToMessage(self, line, roomname):
+    def _line_to_message(self, line, roomname):
         # finding the timestamp
-        timeStart = line.find("[") + 1
-        timeEnds = line.find("]")
-        timeStr = line[timeStart:timeEnds].strip()
+        time_start = line.find("[") + 1
+        time_ends = line.find("]")
+        time_str = line[time_start:time_ends].strip()
         try:
-            timestamp = datetime.datetime.strptime(timeStr, "%Y.%m.%d %H:%M:%S")
+            timestamp = datetime.datetime.strptime(time_str, "%Y.%m.%d %H:%M:%S")
         except ValueError:
             return None
         # finding the username of the poster
-        userEnds = line.find(">")
-        username = line[timeEnds + 1:userEnds].strip()
+        user_ends = line.find(">")
+        username = line[time_ends + 1:user_ends].strip()
         # finding the pure message
-        text = line[userEnds + 1:].strip()  # text will the text to work an
-        originalText = text
-        formatedText = u"<rtext>{0}</rtext>".format(text)
-        soup = BeautifulSoup(formatedText, 'html.parser')
+        text = line[user_ends + 1:].strip()  # text will the text to work an
+        original_text = text
+        formated_text = u"<rtext>{0}</rtext>".format(text)
+        soup = BeautifulSoup(formated_text, 'html.parser')
         rtext = soup.select("rtext")[0]
         systems = set()
-        upperText = text.upper()
+        upper_text = text.upper()
 
         # KOS request
-        if upperText.startswith("XXX "):
-            return Message(roomname, text, timestamp, username, systems, upperText, status=states.KOS_STATUS_REQUEST)
+        if upper_text.startswith("XXX "):
+            return Message(roomname, text, timestamp, username, systems, upper_text, status=states.KOS_STATUS_REQUEST)
         elif roomname.startswith("="):
-            return Message(roomname, "xxx " + text, timestamp, username, systems, "XXX " + upperText, status=states.KOS_STATUS_REQUEST)
-        elif upperText.startswith("VINTELSOUND_TEST"):
-            return Message(roomname, text, timestamp, username, systems, upperText, status=states.SOUND_TEST)
+            return Message(roomname, "xxx " + text, timestamp, username, systems, "XXX " + upper_text, status=states.KOS_STATUS_REQUEST)
         if roomname not in self.rooms:
             return None
 
-
-        message = Message(roomname, "", timestamp, username, systems, text, originalText)
+        message = Message(roomname, "", timestamp, username, systems, text, original_text)
         # May happen if someone plays > 1 account
         if message in self.knownMessages:
             message.status = states.IGNORE
             return message
 
-        while parseShips(rtext):
+        while parse_ships(rtext):
             continue
-        while parseUrls(rtext):
+        while parse_urls(rtext):
             continue
-        while parseSystems(self.systems, rtext, systems):
+        while parse_systems(self.systems, rtext, systems):
             continue
-        parsedStatus = parseStatus(rtext)
-        status = parsedStatus if parsedStatus is not None else states.ALARM
+        parsed_status = parse_status(rtext)
+        status = parsed_status if parsed_status is not None else states.ALARM
 
         # If message says clear and no system? Maybe an answer to a request?
         if status == states.CLEAR and not systems:
-            maxSearch = 2  # we search only max_search messages in the room
+            max_search = 2  # we search only max_search messages in the room
             for count, oldMessage in enumerate(oldMessage for oldMessage in self.knownMessages[-1::-1] if oldMessage.room == roomname):
                 if oldMessage.systems and oldMessage.status == states.REQUEST:
                     for system in oldMessage.systems:
                         systems.add(system)
                     break
-                if count > maxSearch:
+                if count > max_search:
                     break
         message.message = six.text_type(rtext)
         message.status = status
@@ -159,7 +156,7 @@ class ChatParser(object):
                 system.messages.append(message)
         return message
 
-    def _parseLocal(self, path, line):
+    def _parse_local(self, path, line):
         message = []
         """ Parsing a line from the local chat. Can contain the system of the char
         """
@@ -168,17 +165,17 @@ class ChatParser(object):
             self.locations[charname] = {"system": "?", "timestamp": datetime.datetime(1970, 1, 1, 0, 0, 0, 0)}
 
         # Finding the timestamp
-        timeStart = line.find("[") + 1
-        timeEnds = line.find("]")
-        timeStr = line[timeStart:timeEnds].strip()
-        timestamp = datetime.datetime.strptime(timeStr, "%Y.%m.%d %H:%M:%S")
+        time_start = line.find("[") + 1
+        time_ends = line.find("]")
+        time_str = line[time_start:time_ends].strip()
+        timestamp = datetime.datetime.strptime(time_str, "%Y.%m.%d %H:%M:%S")
 
         # Finding the username of the poster
-        userEnds = line.find(">")
-        username = line[timeEnds + 1:userEnds].strip()
+        user_ends = line.find(">")
+        username = line[time_ends + 1:user_ends].strip()
 
         # Finding the pure message
-        text = line[userEnds + 1:].strip()  # text will the text to work an
+        text = line[user_ends + 1:].strip()  # text will the text to work an
         if username in ("EVE-System", "EVE System"):
             if ":" in text:
                 system = text.split(":")[1].strip().replace("*", "").upper()
@@ -193,7 +190,7 @@ class ChatParser(object):
                 message = Message("", "", timestamp, charname, [system, ], "", "", status)
         return message
 
-    def fileModified(self, path):
+    def file_modified(self, path):
         messages = []
         if path in self.ignoredPaths:
             return []
@@ -206,38 +203,38 @@ class ChatParser(object):
         if path not in self.fileData:
             # seems eve created a new file. New Files have 12 lines header
             self.fileData[path] = {"lines": 13}
-        oldLength = self.fileData[path]["lines"]
-        lines = self.addFile(path)
+        old_length = self.fileData[path]["lines"]
+        lines = self.add_file(path)
         if path in self.ignoredPaths:
             return []
-        for line in lines[oldLength - 1:]:
+        for line in lines[old_length - 1:]:
             line = line.strip()
             if len(line) > 2:
                 message = None
                 if roomname in LOCAL_NAMES:
-                    message = self._parseLocal(path, line)
+                    message = self._parse_local(path, line)
                 else:
-                    message = self._lineToMessage(line, roomname)
+                    message = self._line_to_message(line, roomname)
                 if message:
                     messages.append(message)
         return messages
 
 
 class Message(object):
-    def __init__(self, room, message, timestamp, user, systems, upperText, plainText="", status=states.ALARM):
+    def __init__(self, room, message, timestamp, user, systems, upper_text, plain_text="", status=states.ALARM):
         self.room = room  # chatroom the message was posted
         self.message = message  # the messages text
         self.timestamp = timestamp  # time stamp of the massage
         self.user = user  # user who posted the message
         self.systems = systems  # list of systems mentioned in the message
         self.status = status  # status related to the message
-        self.upperText = upperText  # the text in UPPER CASE
-        self.plainText = plainText  # plain text of the message, as posted
+        self.upperText = upper_text  # the text in UPPER CASE
+        self.plainText = plain_text  # plain text of the message, as posted
         # if you add the message to a widget, please add it to widgets
         self.widgets = []
 
     def __key(self):
-        return (self.room, self.plainText, self.timestamp, self.user)
+        return self.room, self.plainText, self.timestamp, self.user
 
     def __eq__(x, y):
         return x.__key() == y.__key()

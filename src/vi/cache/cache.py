@@ -17,23 +17,29 @@
 #  along with this program.	 If not, see <http://www.gnu.org/licenses/>.  #
 ###########################################################################
 
+import logging
 import sqlite3
 import threading
 import time
+
 import six
+
+from dbstructure import update_database
+
 if six.PY2:
     def to_blob(x):
         return buffer(str(x))
+
+
     def from_blob(x):
         return str(x[0][0])
 else:
     def to_blob(x):
         return x
+
+
     def from_blob(x):
         return x
-
-import logging
-from vi.cache.dbstructure import updateDatabase
 
 
 class Cache(object):
@@ -49,42 +55,42 @@ class Cache(object):
     # Cache-Instances in various threads: must handle concurrent writings
     SQLITE_WRITE_LOCK = threading.Lock()
 
-    def __init__(self, pathToSQLiteFile="cache.sqlite3"):
+    def __init__(self, path_to_sqlite_file="cache.sqlite3"):
         """ pathToSQLiteFile=path to sqlite-file to save the cache. will be ignored if you set Cache.PATH_TO_CACHE before init
         """
         if Cache.PATH_TO_CACHE:
-            pathToSQLiteFile = Cache.PATH_TO_CACHE
-        self.con = sqlite3.connect(pathToSQLiteFile)
+            path_to_sqlite_file = Cache.PATH_TO_CACHE
+        self.con = sqlite3.connect(path_to_sqlite_file)
         if not Cache.VERSION_CHECKED:
             with Cache.SQLITE_WRITE_LOCK:
-                self.checkVersion()
+                self.check_version()
         Cache.VERSION_CHECKED = True
 
-    def checkVersion(self):
+    def check_version(self):
         query = "SELECT version FROM version;"
         version = 0
         try:
             version = self.con.execute(query).fetchall()[0][0]
         except Exception as e:
-            if (isinstance(e, sqlite3.OperationalError) and "no such table: version" in str(e)):
+            if isinstance(e, sqlite3.OperationalError) and "no such table: version" in str(e):
                 pass
-            elif (isinstance(e, IndexError)):
+            elif isinstance(e, IndexError):
                 pass
             else:
                 raise e
-        updateDatabase(version, self.con)
+        update_database(version, self.con)
 
-    def putIntoCache(self, key, value, maxAge=60 * 60 * 24 * 3):
+    def put_into_cache(self, key, value, max_age=60 * 60 * 24 * 3):
         """ Putting something in the cache maxAge is maximum age in seconds
         """
         with Cache.SQLITE_WRITE_LOCK:
             query = "DELETE FROM cache WHERE key = ?"
             self.con.execute(query, (key,))
             query = "INSERT INTO cache (key, data, modified, maxAge) VALUES (?, ?, ?, ?)"
-            self.con.execute(query, (key, value, time.time(), maxAge))
+            self.con.execute(query, (key, value, time.time(), max_age))
             self.con.commit()
 
-    def getFromCache(self, key, outdated=False):
+    def get_fromcache(self, key, outdated=False):
         """ Getting a value from cache
             key = the key for the value
             outdated = returns the value also if it is outdated
@@ -98,60 +104,8 @@ class Cache(object):
         else:
             return founds[0][1]
 
-    def putPlayerName(self, name, status):
-        """ Putting a playername into the cache
-        """
-        with Cache.SQLITE_WRITE_LOCK:
-            query = "DELETE FROM playernames WHERE charname = ?"
-            self.con.execute(query, (name,))
-            query = "INSERT INTO playernames (charname, status, modified) VALUES (?, ?, ?)"
-            self.con.execute(query, (name, status, time.time()))
-            self.con.commit()
-
-    def getPlayerName(self, name):
-        """ Getting back infos about playername from Cache. Returns None if the name was not found, else it returns the status
-        """
-        selectquery = "SELECT charname, status FROM playernames WHERE charname = ?"
-        founds = self.con.execute(selectquery, (name,)).fetchall()
-        if len(founds) == 0:
-            return None
-        else:
-            return founds[0][1]
-
-    def putAvatar(self, name, data):
-        """ Put the picture of an player into the cache
-        """
-        with Cache.SQLITE_WRITE_LOCK:
-            # data is a blob, so we have to change it to buffer
-            data = to_blob(data)
-            query = "DELETE FROM avatars WHERE charname = ?"
-            self.con.execute(query, (name,))
-            query = "INSERT INTO avatars (charname, data, modified) VALUES (?, ?, ?)"
-            self.con.execute(query, (name, data, time.time()))
-            self.con.commit()
-
-    def getAvatar(self, name):
-        """ Getting the avatars_pictures data from the Cache. Returns None if there is no entry in the cache
-        """
-        selectQuery = "SELECT data FROM avatars WHERE charname = ?"
-        founds = self.con.execute(selectQuery, (name,)).fetchall()
-        if len(founds) == 0:
-            return None
-        else:
-            # dats is buffer, we convert it back to str
-            data = from_blob(founds[0][0])
-            return data
-
-    def removeAvatar(self, name):
-        """ Removing an avatar from the cache
-        """
-        with Cache.SQLITE_WRITE_LOCK:
-            query = "DELETE FROM avatars WHERE charname = ?"
-            self.con.execute(query, (name,))
-            self.con.commit()
-
-    def recallAndApplySettings(self, responder, settingsIdentifier):
-        settings = self.getFromCache(settingsIdentifier)
+    def recall_and_apply_settings(self, responder, settings_identifier):
+        settings = self.get_fromcache(settings_identifier)
         if settings:
             settings = eval(settings)
             for setting in settings:
@@ -161,5 +115,3 @@ class Cache(object):
                     getattr(obj, setting[1])(setting[2])
                 except Exception as e:
                     logging.error(e)
-
-

@@ -21,13 +21,14 @@ import os
 import sys
 
 
-def resourcePath(relativePath):
+# has to be camelCase
+def resourcePath(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller
     """
     if getattr(sys, 'frozen', False):
         # PyInstaller creates a temp folder and stores path in _MEIPASS
-        basePath = sys._MEIPASS
+        base_path = sys._MEIPASS
     else:
-        basePath = os.path.abspath(".")
-    returnpath = os.path.join(basePath, relativePath)
+        base_path = os.path.abspath(".")
+    returnpath = os.path.join(base_path, relative_path)
     return returnpath

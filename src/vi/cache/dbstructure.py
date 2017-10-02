@@ -26,21 +26,17 @@ condition = if TRUE the query qull be executed
 databaseUpdates = []
 
 
-def updateDatabase(oldVersion, con):
+def update_database(old_version, con):
     """ Changes for the database-structure should be added here,
         or added to added_database_updates
         con = the database connection
     """
     queries = []
-    if oldVersion < 1:
+    if old_version < 1:
         queries += ["CREATE TABLE version (version INT)", "INSERT INTO version (version) VALUES (1)"]
-    if oldVersion < 2:
-        queries += ["CREATE TABLE playernames (charname VARCHAR PRIMARY KEY, status INT, modified INT)",
-                    "CREATE TABLE avatars (charname VARCHAR PRIMARY KEY, data  BLOB, modified INT)",
-                    "UPDATE version SET version = 2"]
-    if oldVersion < 3:
+    if old_version < 2:
         queries += ["CREATE TABLE cache (key VARCHAR PRIMARY KEY, data BLOB, modified INT, maxage INT)",
-                    "UPDATE version SET version = 3"]
+                    "UPDATE version SET version = 2"]
     for query in queries:
         con.execute(query)
     for update in databaseUpdates:

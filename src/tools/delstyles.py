@@ -25,7 +25,7 @@ import sys
 from bs4 import BeautifulSoup
 
 
-def readSvg(path):
+def read_svg(path):
     if not os.path.exists(path):
         errout("ERROR: {0} does not exist!".format(path))
         sys.exit(2)
@@ -35,16 +35,16 @@ def readSvg(path):
     return soup
 
 
-def deleteStylesFromSvg(soup):
-    def recursiveRemoveStyle(element):
+def delete_styles_from_svg(soup):
+    def recursive_remove_style(element):
         for subElement in element.select("*"):
             if "style" in subElement.attrs:
                 del subElement.attrs["style"]
             if subElement.name == "text":
                 subElement.attrs["text-anchor"] = "middle"
-            recursiveRemoveStyle(subElement)
+            recursive_remove_style(subElement)
 
-    recursiveRemoveStyle(soup)
+    recursive_remove_style(soup)
     return soup
 
 
@@ -56,9 +56,9 @@ def main():
         errout("The modiefied data is written to stdout")
         sys.exit(1)
     path = sys.argv[1]
-    source = readSvg(path)
-    withoutStyle = deleteStylesFromSvg(source)
-    result = withoutStyle.body.next.prettify().encode("utf-8")
+    source = read_svg(path)
+    without_style = delete_styles_from_svg(source)
+    result = without_style.body.next.prettify().encode("utf-8")
     print(result)
 
 
